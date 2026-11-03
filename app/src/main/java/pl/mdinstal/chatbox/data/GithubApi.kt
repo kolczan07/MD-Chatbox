@@ -7,6 +7,23 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 
+data class GithubPutContentRequest(
+    val message: String,
+    val content: String,        // base64
+    val sha: String,            // aktualny SHA pliku (z GitHubContent)
+    val branch: String? = null
+)
+
+data class GithubPutContentResponse(
+    val content: GithubContent?,
+    val commit: GithubCommit?
+)
+
+data class GithubCommit(
+    val sha: String,
+    val message: String
+)
+
 interface GithubApiService {
     @GET("user")
     suspend fun getAuthenticatedUser(@Header("Authorization") token: String): GithubUser
@@ -33,6 +50,15 @@ interface GithubApiService {
         @Path("repo") repo: String,
         @Header("Authorization") token: String
     ): List<GithubBranch>
+
+    @PUT("repos/{owner}/{repo}/contents/{path}")
+    suspend fun putContents(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String,
+        @Path("path", encoded = true) path: String,
+        @Header("Authorization") token: String,
+        @Body body: GithubPutContentRequest
+    ): GithubPutContentResponse
 }
 
 object GithubApiClient {
