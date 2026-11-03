@@ -42,9 +42,8 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     var browserBranches by mutableStateOf<List<String>>(emptyList())
     var fileContent     by mutableStateOf<String?>(null)
     var fileName        by mutableStateOf("")
-    var fileSha         by mutableStateOf("")   // SHA aktualnie otwartego pliku (potrzebne do edycji)
+    var fileSha         by mutableStateOf("")
 
-    // Edycja pliku
     var isEditing       by mutableStateOf(false)
     var editText        by mutableStateOf("")
 
@@ -61,7 +60,6 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
 
     fun sendMessage(text: String) {
         val conv = currentConversation ?: run {
-            // Auto-utworzenie konwersacji, jeśli brak
             newConversation()
             currentConversation!!
         }
@@ -167,7 +165,7 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     fun openFile(item: GithubContent) {
         val url = item.download_url
         if (url == null) {
-            errorMessage = "Nie można pobrać '${item.name}' — brak download_url (katalog lub plik binarny)"
+            errorMessage = "Nie można pobrać '${item.name}' — brak download_url"
             return
         }
         viewModelScope.launch {
@@ -179,7 +177,7 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
                     fileSha = item.sha
                     isEditing = false
                 },
-                onFailure = { errorMessage = "Błąd pobierania: ${it.message}" }
+                onFailure = { errorMessage = "Błąd pobierania: ${it::class.simpleName}: ${it.message ?: it.toString()}" }
             )
             isLoading = false
         }
@@ -214,19 +212,17 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
                 commitMessage = commitMessage.ifBlank { "Update $fileName via MD-Chatbox" }
             ).fold(
                 onSuccess = {
-                    // Zaktualizuj lokalny widok
                     fileContent = editText
                     isEditing = false
                     editText = ""
                     errorMessage = "✅ Zapisano: $fileName"
                 },
-                onFailure = { errorMessage = "Błąd zapisu: ${it.message}" }
+                onFailure = { errorMessage = "Błąd zapisu: ${it::class.simpleName}: ${it.message ?: it.toString()}" }
             )
             isLoading = false
         }
     }
 
-    // ── Aktualizacje (GitHub Releases) ──
     var updateInfo       by mutableStateOf<UpdateInfo?>(null)
     var updateStatus     by mutableStateOf("")
     var updateProgress   by mutableStateOf<Float?>(null)
