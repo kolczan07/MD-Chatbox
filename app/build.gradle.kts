@@ -4,6 +4,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Podpis z GitHub Secrets (zmienne środowiskowe ustawiane w workflow)
+// Pusty/nieistniejący plik (np. brak sekretów w repo) = bez podpisu release'owego
+val keystorePath: String? = System.getenv("KEYSTORE_FILE")
+    ?.takeIf { File(it).let { f -> f.exists() && f.length() > 0 } }
+
 android {
     namespace = "pl.mdinstal.chatbox"
     compileSdk = 35
@@ -12,14 +17,31 @@ android {
         applicationId = "pl.mdinstal.chatbox"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Wersje podawane z CI: -PversionName=1.2 -PversionCode=...
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "1.0"
+    }
+
+    signingConfigs {
+        if (!keystorePath.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+        }
+        debug {
+            // Debug podpisany tym samym kluczem, żeby dało się go instalować na release i odwrotnie
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
