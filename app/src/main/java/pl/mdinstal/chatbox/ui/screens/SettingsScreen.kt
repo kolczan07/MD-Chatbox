@@ -90,6 +90,38 @@ fun SettingsScreen(vm: ChatViewModel) {
                 }
             }
             item {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.SystemUpdate, null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Aktualizacje", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Zainstalowana wersja: ${vm.currentVersion}", fontSize = 13.sp)
+                        if (vm.updateStatus.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(vm.updateStatus, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(0.6f))
+                        }
+                        vm.updateProgress?.let {
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(progress = { it }, modifier = Modifier.fillMaxWidth())
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { vm.checkForUpdate(false) }, modifier = Modifier.weight(1f)) {
+                                Icon(Icons.Default.Refresh, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Sprawdź", fontSize = 13.sp)
+                            }
+                            vm.updateInfo?.let { info ->
+                                Button(onClick = { vm.downloadAndInstall() }, enabled = vm.updateProgress == null, modifier = Modifier.weight(1f)) {
+                                    Text("Zainstaluj ${info.version}", fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Column(Modifier.padding(16.dp)) {
                         Text("ℹ️ MD-Chatbox v1.0", style = MaterialTheme.typography.titleSmall)
