@@ -9,7 +9,7 @@ import kotlinx.coroutines.launch
 import pl.mdinstal.chatbox.data.*
 import pl.mdinstal.chatbox.model.*
 
-class ChatViewModel(private val storage: ChatStorage) : ViewModel() {
+class ChatViewModel(private val storage: ChatStorage, private val updater: Updater) : ViewModel() {
 
     private val claudeRepo = ClaudeRepository()
     val githubRepo = GithubRepository()
@@ -155,8 +155,44 @@ class ChatViewModel(private val storage: ChatStorage) : ViewModel() {
         }
     }
 
+    // ── Aktualizacje (GitHub Releases) ──
+    var updateInfo       by mutableStateOf<UpdateInfo?>(null)
+    var updateStatus     by mutableStateOf("")
+    var updateProgress   by mutableStateOf<Float?>(null)
+    var showUpdateDialog by mutableStateOf(false)
+    val currentVersion: String get() = updater.currentVersion()
+
+    fun checkForUpdate(silent: Boolean = false) = viewModelScope.launch {
+        if (!silent) updateStatus = "Sprawdzanie…"
+        updater.checkForUpdate().fold(
+            onSuccess = { info ->
+                updateInfo = info
+                if (info != null) {
+                    updateStatus = "Dostępna wersja ${info.version}"
+                    showUpdateDialog = true
+                } else if (!silent) updateStatus = "Masz najnowszą wersję"
+            },
+            onFailure = { if (!silent) updateStatus = "Błąd: ${it.message}" }
+        )
+    }
+
+    fun downloadAndInstall() {
+        val info = updateInfo ?: return
+        viewModelScope.launch {
+            updateProgress = 0f
+            updater.download(info) { updateProgress = it }.fold(
+                onSuccess = { file ->
+                    updateProgress = null
+                    if (updater.install(file)) showUpdateDialog = false
+                    else errorMessage = "Zezwól na instalację z tego źródła i spróbuj ponownie"
+                },
+                onFailure = { updateProgress = null; errorMessage = "Błąd pobierania: ${it.message}" }
+            )
+        }
+    }
+
     class Factory(private val ctx: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(c: Class<T>) = ChatViewModel(ChatStorage(ctx)) as T
+        override fun <T : ViewModel> create(c: Class<T>) = ChatViewModel(ChatStorage(ctx), Updater(ctx.applicationContext)) as T
     }
 }
