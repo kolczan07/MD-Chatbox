@@ -42,6 +42,11 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     var browserBranches by mutableStateOf<List<String>>(emptyList())
     var fileContent     by mutableStateOf<String?>(null)
     var fileName        by mutableStateOf("")
+    var fileSha         by mutableStateOf("")   // SHA aktualnie otwartego pliku (potrzebne do edycji)
+
+    // Edycja pliku
+    var isEditing       by mutableStateOf(false)
+    var editText        by mutableStateOf("")
 
     fun newConversation(model: String = "claude-sonnet-4-5", systemPrompt: String = "") {
         currentConversation = Conversation(model = model, systemPrompt = systemPrompt)
@@ -55,8 +60,12 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     }
 
     fun sendMessage(text: String) {
-        val conv = currentConversation ?: return
-        val key  = claudeApiKey.value
+        val conv = currentConversation ?: run {
+            // Auto-utworzenie konwersacji, jeśli brak
+            newConversation()
+            currentConversation!!
+        }
+        val key = claudeApiKey.value
         if (key.isBlank()) { errorMessage = "Brak klucza API Claude!"; return }
 
         val userMsg     = ChatMessage(role = MessageRole.USER, content = text)
@@ -84,6 +93,7 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     }
 
     fun injectFileToChat(name: String, content: String) {
+        if (currentConversation == null) newConversation()
         sendMessage("📎 **$name**\n```\n$content\n```")
     }
 
@@ -116,14 +126,15 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
 
     fun openRepo(repo: GithubRepo) {
         browserRepo = repo; browserPath = ""; browserBranch = repo.default_branch
-        fileContent = null; loadBranches(); loadContents()
+        fileContent = null; isEditing = false; loadBranches(); loadContents()
     }
 
     fun navigateTo(path: String) { browserPath = path; loadContents() }
 
     fun navigateUp() {
         when {
-            fileContent != null -> fileContent = null
+            isEditing -> { isEditing = false }
+            fileContent != null -> { fileContent = null; isEditing = false }
             browserPath.contains("/") -> { browserPath = browserPath.substringBeforeLast("/"); loadContents() }
             browserPath.isNotEmpty()  -> { browserPath = ""; loadContents() }
             else -> { browserRepo = null; browserContents = emptyList() }
@@ -154,12 +165,62 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
     }
 
     fun openFile(item: GithubContent) {
-        val url = item.download_url ?: return
+        val url = item.download_url
+        if (url == null) {
+            errorMessage = "Nie można pobrać '${item.name}' — brak download_url (katalog lub plik binarny)"
+            return
+        }
         viewModelScope.launch {
             isLoading = true
-            githubRepo.downloadFile(url).fold(
-                onSuccess = { content -> fileContent = content; fileName = item.name },
-                onFailure = { errorMessage = it.message }
+            githubRepo.downloadFile(url, githubToken.value).fold(
+                onSuccess = { content ->
+                    fileContent = content
+                    fileName = item.name
+                    fileSha = item.sha
+                    isEditing = false
+                },
+                onFailure = { errorMessage = "Błąd pobierania: ${it.message}" }
+            )
+            isLoading = false
+        }
+    }
+
+    fun startEditing() {
+        editText = fileContent ?: return
+        isEditing = true
+    }
+
+    fun cancelEditing() {
+        isEditing = false
+        editText = ""
+    }
+
+    fun saveEditedFile(commitMessage: String) {
+        val repo = browserRepo ?: return
+        val token = githubToken.value
+        if (token.isBlank()) { errorMessage = "Brak tokenu GitHub"; return }
+        if (fileSha.isBlank()) { errorMessage = "Brak SHA pliku — otwórz plik ponownie"; return }
+
+        viewModelScope.launch {
+            isLoading = true
+            githubRepo.updateFile(
+                owner = repo.full_name.substringBefore("/"),
+                repo = repo.name,
+                path = if (browserPath.isEmpty()) fileName else "$browserPath/$fileName",
+                branch = browserBranch,
+                currentSha = fileSha,
+                newContent = editText,
+                token = token,
+                commitMessage = commitMessage.ifBlank { "Update $fileName via MD-Chatbox" }
+            ).fold(
+                onSuccess = {
+                    // Zaktualizuj lokalny widok
+                    fileContent = editText
+                    isEditing = false
+                    editText = ""
+                    errorMessage = "✅ Zapisano: $fileName"
+                },
+                onFailure = { errorMessage = "Błąd zapisu: ${it.message}" }
             )
             isLoading = false
         }
@@ -203,6 +264,7 @@ class ChatViewModel(private val storage: ChatStorage, private val updater: Updat
 
     class Factory(private val ctx: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(c: Class<T>) = ChatViewModel(ChatStorage(ctx), Updater(ctx.applicationContext)) as T
+        override fun <T : ViewModel> create(c: Class<T>) =
+            ChatViewModel(ChatStorage(ctx), Updater(ctx.applicationContext)) as T
     }
 }
