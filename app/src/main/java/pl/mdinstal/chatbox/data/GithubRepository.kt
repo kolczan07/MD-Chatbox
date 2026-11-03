@@ -29,10 +29,11 @@ class GithubRepository {
             api.getBranches(owner, repo, "token $token").map { it.name }
         }
 
-    /** Pobiera surową treść pliku (działa też dla prywatnych repo, bo dodajemy token). */
+    /** Pobiera surową treść pliku. Nagłówek Accept zapobiega problemom z przekierowaniami GitHuba. */
     suspend fun downloadFile(url: String, token: String = ""): Result<String> = runCatching {
         val request = Request.Builder()
             .url(url)
+            .header("Accept", "application/vnd.github.v3.raw")
             .apply {
                 if (token.isNotBlank()) header("Authorization", "token $token")
             }
@@ -41,14 +42,16 @@ class GithubRepository {
             if (!response.isSuccessful) {
                 error("HTTP ${response.code} ${response.message}")
             }
-            response.body?.string() ?: error("Pusta odpowiedź serwera")
+            val body = response.body ?: error("HTTP ${response.code}: puste body (redirect?)")
+            val text = body.string()
+            if (text.isBlank()) {
+                error("HTTP ${response.code}: pusta treść")
+            }
+            text
         }
     }
 
-    /**
-     * Edytuje plik w repo. Zwraca nową treść z odpowiedzi (lub pusty string).
-     * Wymaga: owner, repo, path, branch, aktualny sha, nowa treść, token, commit message.
-     */
+    /** Edytuje plik w repo. Wymaga aktualnego SHA pliku. */
     suspend fun updateFile(
         owner: String,
         repo: String,
