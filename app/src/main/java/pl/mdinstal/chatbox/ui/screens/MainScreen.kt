@@ -16,8 +16,16 @@ enum class Tab { CHAT, CONVERSATIONS, GITHUB, SETTINGS }
 @Composable
 fun MainScreen(vm: ChatViewModel) {
     var activeTab by remember { mutableStateOf(Tab.CHAT) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.checkForUpdate(silent = true) }
+
+    LaunchedEffect(vm.errorMessage) {
+        vm.errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            vm.errorMessage = null
+        }
+    }
 
     if (vm.showUpdateDialog) {
         vm.updateInfo?.let { info ->
@@ -46,6 +54,7 @@ fun MainScreen(vm: ChatViewModel) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -98,13 +107,6 @@ fun MainScreen(vm: ChatViewModel) {
             }
         }
     ) { padding ->
-        vm.errorMessage?.let { err ->
-            LaunchedEffect(err) { kotlinx.coroutines.delay(4000); vm.errorMessage = null }
-            Snackbar(modifier = Modifier.padding(padding),
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor   = MaterialTheme.colorScheme.onErrorContainer
-            ) { Text(err) }
-        }
         Box(Modifier.padding(padding)) {
             when (activeTab) {
                 Tab.CHAT          -> ChatScreen(vm)
