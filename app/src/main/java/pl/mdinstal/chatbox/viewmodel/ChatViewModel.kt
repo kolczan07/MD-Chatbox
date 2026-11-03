@@ -2,12 +2,22 @@ package pl.mdinstal.chatbox.viewmodel
 
 import android.content.Context
 import androidx.compose.runtime.*
-import androidx.lifecycle.*
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import pl.mdinstal.chatbox.data.*
-import pl.mdinstal.chatbox.model.*
+import pl.mdinstal.chatbox.data.ChatStorage
+import pl.mdinstal.chatbox.data.ClaudeRepository
+import pl.mdinstal.chatbox.data.GithubRepository
+import pl.mdinstal.chatbox.data.UpdateInfo
+import pl.mdinstal.chatbox.data.Updater
+import pl.mdinstal.chatbox.model.ChatMessage
+import pl.mdinstal.chatbox.model.Conversation
+import pl.mdinstal.chatbox.model.GithubContent
+import pl.mdinstal.chatbox.model.GithubRepo
+import pl.mdinstal.chatbox.model.MessageRole
 
 class ChatViewModel(private val storage: ChatStorage, private val updater: Updater) : ViewModel() {
 
