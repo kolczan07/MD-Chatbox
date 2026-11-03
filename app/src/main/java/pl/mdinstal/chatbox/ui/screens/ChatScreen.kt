@@ -32,7 +32,12 @@ fun ChatScreen(vm: ChatViewModel) {
         if (size > 0) listState.animateScrollToItem(size - 1)
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // Zmiana 1: Dodano Modifier.imePadding() do głównego Column
+    Column(
+        Modifier
+            .fillMaxSize()
+            .imePadding() 
+    ) {
         if (conv != null) {
             Surface(tonalElevation = 1.dp) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
