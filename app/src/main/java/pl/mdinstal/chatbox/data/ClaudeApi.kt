@@ -5,6 +5,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
+import java.util.concurrent.TimeUnit
 
 data class ClaudeRequest(
     val model: String,
@@ -44,15 +45,19 @@ interface ClaudeApiService {
 
 object ClaudeApiClient {
     val service: ClaudeApiService by lazy {
+        // Zwiększamy timeouty: 60 sekund na połączenie, 60 sekund na odczyt
+        val client = OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .build()
+
         Retrofit.Builder()
             .baseUrl("https://api.anthropic.com/")
-            .client(
-                OkHttpClient.Builder()
-                    .addInterceptor(HttpLoggingInterceptor().apply {
-                        level = HttpLoggingInterceptor.Level.BODY
-                    })
-                    .build()
-            )
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ClaudeApiService::class.java)
