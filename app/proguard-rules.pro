@@ -1,0 +1,3 @@
+-keep class pl.mdinstal.chatbox.** { *; }
+-keep class retrofit2.** { *; }
+-keep class okhttp3.** { *; }
