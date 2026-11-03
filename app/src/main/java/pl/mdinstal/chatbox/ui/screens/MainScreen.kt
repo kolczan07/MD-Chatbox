@@ -1,6 +1,7 @@
 package pl.mdinstal.chatbox.ui.screens
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,6 +16,30 @@ enum class Tab { CHAT, CONVERSATIONS, GITHUB, SETTINGS }
 @Composable
 fun MainScreen(vm: ChatViewModel) {
     var activeTab by remember { mutableStateOf(Tab.CHAT) }
+
+    LaunchedEffect(Unit) { vm.checkForUpdate(silent = true) }
+
+    if (vm.showUpdateDialog) {
+        vm.updateInfo?.let { info ->
+            AlertDialog(
+                onDismissRequest = { if (vm.updateProgress == null) vm.showUpdateDialog = false },
+                title = { Text("Dostępna aktualizacja") },
+                text = {
+                    Column {
+                        Text("Wersja ${info.version} (obecna: ${vm.currentVersion})")
+                        if (info.notes.isNotBlank()) Text(info.notes.take(400))
+                        vm.updateProgress?.let { LinearProgressIndicator(progress = { it }) }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { vm.downloadAndInstall() }, enabled = vm.updateProgress == null) { Text("Aktualizuj") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.showUpdateDialog = false }, enabled = vm.updateProgress == null) { Text("Później") }
+                }
+            )
+        }
+    }
 
     LaunchedEffect(activeTab) {
         if (activeTab == Tab.GITHUB && vm.githubRepos.isEmpty()) vm.loadRepos()
