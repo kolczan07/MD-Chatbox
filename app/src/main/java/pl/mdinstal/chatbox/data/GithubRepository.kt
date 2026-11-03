@@ -1,5 +1,7 @@
 package pl.mdinstal.chatbox.data
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import pl.mdinstal.chatbox.model.*
@@ -29,29 +31,31 @@ class GithubRepository {
             api.getBranches(owner, repo, "token $token").map { it.name }
         }
 
-    /** Pobiera surową treść pliku. Nagłówek Accept zapobiega problemom z przekierowaniami GitHuba. */
-    suspend fun downloadFile(url: String, token: String = ""): Result<String> = runCatching {
-        val request = Request.Builder()
-            .url(url)
-            .header("Accept", "application/vnd.github.v3.raw")
-            .apply {
-                if (token.isNotBlank()) header("Authorization", "token $token")
+    /** Pobiera surową treść pliku. Używa Dispatchers.IO, aby nie blokować wątku głównego. */
+    suspend fun downloadFile(url: String, token: String = ""): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/vnd.github.v3.raw")
+                .apply {
+                    if (token.isNotBlank()) header("Authorization", "token $token")
+                }
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    error("HTTP ${response.code} ${response.message}")
+                }
+                val body = response.body ?: error("HTTP ${response.code}: puste body (redirect?)")
+                val text = body.string()
+                if (text.isBlank()) {
+                    error("HTTP ${response.code}: pusta treść")
+                }
+                text
             }
-            .build()
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                error("HTTP ${response.code} ${response.message}")
-            }
-            val body = response.body ?: error("HTTP ${response.code}: puste body (redirect?)")
-            val text = body.string()
-            if (text.isBlank()) {
-                error("HTTP ${response.code}: pusta treść")
-            }
-            text
         }
     }
 
-    /** Edytuje plik w repo. Wymaga aktualnego SHA pliku. */
+    /** Edytuje plik w repo. Wymaga aktualnego SHA pliku. Używa Dispatchers.IO. */
     suspend fun updateFile(
         owner: String,
         repo: String,
@@ -61,20 +65,22 @@ class GithubRepository {
         newContent: String,
         token: String,
         commitMessage: String
-    ): Result<Unit> = runCatching {
-        val encoded = Base64.getEncoder().encodeToString(newContent.toByteArray(Charsets.UTF_8))
-        api.putContents(
-            owner = owner,
-            repo = repo,
-            path = path,
-            token = "token $token",
-            body = GithubPutContentRequest(
-                message = commitMessage,
-                content = encoded,
-                sha = currentSha,
-                branch = branch
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val encoded = Base64.getEncoder().encodeToString(newContent.toByteArray(Charsets.UTF_8))
+            api.putContents(
+                owner = owner,
+                repo = repo,
+                path = path,
+                token = "token $token",
+                body = GithubPutContentRequest(
+                    message = commitMessage,
+                    content = encoded,
+                    sha = currentSha,
+                    branch = branch
+                )
             )
-        )
-        Unit
+            Unit
+        }
     }
 }
